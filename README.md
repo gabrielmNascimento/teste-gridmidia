@@ -30,6 +30,8 @@ importar despesas por CSV e consultar totais por unidade em um período.
 - **API:** REST versionada em `/api/v1`, compartilhando validações e serviços
   com a interface para que as regras sejam aplicadas da mesma forma nos dois
   canais.
+- **Ambiente local:** Docker Compose com Laravel Sail executa a aplicação e
+  o MySQL em serviços reproduzíveis, sem exigir MySQL instalado no host.
 - **Câmbio:** integração encapsulada em um serviço de cotação, inicialmente com
   a API pública Frankfurter. Despesas em USD podem ser persistidas como
   pendentes de conversão se o provedor estiver indisponível; uma fila pode
@@ -86,6 +88,20 @@ continua disponível para unidades, despesas, importação e relatório. Tanto a
 interface quanto a API devem chamar os mesmos serviços de aplicação, evitando
 regras duplicadas.
 
+### Princípios para toda a implementação
+
+- Controllers e telas adaptam HTTP e apresentação; validações e regras de
+  negócio ficam em componentes compartilhados, sem duplicar comportamento
+  entre API e interface.
+- Valores monetários são calculados em centavos inteiros e percentuais com
+  precisão decimal fixa; `float` não é usado em cálculos financeiros.
+- Uma despesa só entra nos totais em BRL quando sua conversão e seu rateio
+  estiverem concluídos. Cotação e estado da conversão ficam persistidos.
+- A importação isola cada linha em sua própria transação para manter válidas
+  as demais linhas do arquivo.
+- O MySQL é o banco da aplicação; testes automatizados verificam regras de
+  negócio e contratos expostos pela API.
+
 ## Plano de implementação
 
 1. **Fundação:** criar o projeto Laravel, configurar MySQL e migrations para
@@ -101,8 +117,8 @@ regras duplicadas.
    de sucesso e erros por linha.
 6. **Relatório:** somar alocações em BRL por unidade e período, expondo o
    resultado na API e na interface.
-7. **Entrega:** documentar instalação, decisões, limitações e validar o fluxo
-   com a suíte de testes.
+7. **Entrega:** documentar instalação, decisões e limitações, e validar o
+   fluxo com a suíte de testes.
 
 **Prioridade para o prazo de 4 a 6 horas:** garantir primeiro o modelo de dados,
 o rateio exato e os testes; em seguida entregar o fluxo principal e o relatório.
@@ -146,6 +162,37 @@ documentados quando as rotas forem implementadas.
 
 ## Como executar
 
-Instruções de instalação, variáveis de ambiente, migrations, testes e execução
-local serão preenchidas após a criação e configuração do projeto Laravel. A
-configuração com Docker também será avaliada durante a implementação.
+### Requisitos
+
+- Docker Engine e Docker Compose.
+- PHP 8.3 e Composer 2 para instalar as dependências do projeto.
+
+### Instalação
+
+```sh
+git clone https://github.com/gabrielmNascimento/teste-gridmidia.git
+cd teste-gridmidia
+cp .env.example .env
+composer install
+./vendor/bin/sail up -d
+./vendor/bin/sail artisan key:generate
+./vendor/bin/sail artisan migrate
+```
+
+A aplicação fica disponível em <http://localhost:8000>. O endpoint de saúde da
+API é <http://localhost:8000/api/v1/health>.
+
+### Testes
+
+```sh
+./vendor/bin/sail test
+```
+
+### Parar os serviços
+
+```sh
+./vendor/bin/sail down
+```
+
+Para remover também os dados persistidos do MySQL, use
+`./vendor/bin/sail down -v`.
