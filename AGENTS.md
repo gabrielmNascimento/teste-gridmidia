@@ -26,5 +26,4 @@ completas; mantenha-as como prioridade em toda mudança.
 - Adicione testes às regras de negócio e aos contratos HTTP afetados; execute
   `./vendor/bin/sail test` quando o ambiente Docker estiver disponível.
 - Documente decisões e comandos de execução no README, em português.
-- Se solicitado a criar commits, use mensagens em português e não inclua
-  coautoria ou menção ao Copilot.
+- Se solicitado a criar commits, use mensagens em português.
