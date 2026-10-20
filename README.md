@@ -67,11 +67,13 @@ unidades ou despesas que ainda tenham dados dependentes.
 
 Não usar `float` para validar percentuais ou calcular dinheiro. Validar
 percentuais com precisão decimal fixa e fazer cálculos monetários em centavos
-inteiros. Após arredondar o total convertido para centavos, distribuir o valor
-proporcionalmente. O método dos maiores restos atribui os centavos que sobrarem
-às maiores frações; empates usam uma ordem estável de unidade. Assim, a soma
-das alocações sempre é igual ao total da despesa, inclusive em divisões como
-R$ 100,00 por três unidades.
+inteiros. Percentuais aceitam até quatro casas decimais e precisam somar
+exatamente 100%. Após arredondar o total convertido para centavos, distribuir o
+valor proporcionalmente. O método dos maiores restos atribui os centavos que
+sobrarem às maiores frações; empates são resolvidos pelo menor identificador de
+unidade. Assim, o resultado é determinístico e a soma das alocações sempre é
+igual ao total da despesa, inclusive em divisões como R$ 100,00 por três
+unidades.
 
 ### Falha do serviço de câmbio
 
