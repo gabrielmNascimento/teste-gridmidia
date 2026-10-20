@@ -5,8 +5,8 @@ ratear seus valores entre unidades e consultar os totais em reais por período.
 
 > **Status:** cadastro de empresas, unidades e despesas está disponível pela
 > API e pela interface Blade. Despesas USD são convertidas por uma fila usando
-> cotação histórica. Importação CSV e relatório por unidade/período ainda serão
-> implementados.
+> cotação histórica. Importação CSV linha a linha e relatório por unidade e
+> período estão disponíveis pela API e pela interface Blade.
 
 ## Problema e escopo
 
@@ -93,8 +93,10 @@ um total convertido no relatório.
 
 Validar e processar cada linha separadamente. Uma transação por linha impede
 que uma linha inválida deixe uma despesa parcialmente gravada, sem sacrificar
-as linhas válidas do mesmo arquivo. O relatório deve identificar a linha e o
-motivo do erro.
+as linhas válidas do mesmo arquivo. O importador informa a linha e o motivo de
+cada erro, e o registro de despesas usa o mesmo serviço do formulário e da API.
+O CSV tem cabeçalho obrigatório e um registro por despesa; o campo de rateios
+referencia os códigos estáveis das unidades.
 
 ### Interface e API no mesmo domínio
 
@@ -128,16 +130,15 @@ regras duplicadas.
 4. **Concluído — câmbio resiliente:** buscar e persistir cotação histórica
    USD/BRL, converter sem ponto flutuante e processar falhas com nova tentativa
    na fila.
-5. **Pendente — CSV:** importar cada linha independentemente e devolver um
-   relatório de sucesso e erros por linha.
-6. **Pendente — relatório:** somar alocações em BRL por unidade e período na
-   API e na interface.
-7. **Pendente — entrega:** completar documentação e validar todos os fluxos.
+5. **Concluído — CSV:** importar cada linha independentemente e devolver um
+   resumo de sucesso e erros por linha.
+6. **Concluído — relatório:** somar alocações convertidas em BRL por unidade e
+   período na API e na interface.
+7. **Concluído — entrega funcional:** documentar contratos e validar os fluxos
+   principais com testes automatizados.
 
-**Prioridade para o prazo de 4 a 6 horas:** garantir primeiro o modelo de dados,
-o rateio exato e os testes; em seguida entregar o fluxo principal e o relatório.
-Se o prazo apertar, refinamentos da interface podem ficar de fora, mas a
-despesa em USD não deve ser descartada quando o câmbio falhar.
+Autenticação e autorização continuam fora do escopo do teste, mas são
+necessárias antes de disponibilizar o sistema em produção.
 
 ## API disponível
 
@@ -146,6 +147,11 @@ Rotas atuais sob `/api/v1`:
 - `GET/POST /companies`: listar e cadastrar empresas.
 - `GET/POST /units`: listar e cadastrar unidades.
 - `GET/POST /expenses`: listar e cadastrar despesas.
+- `POST /expenses/import`: importar despesas por CSV; retorna quantidades
+  importadas e erros associados às linhas.
+- `GET /reports/units?start_date=AAAA-MM-DD&end_date=AAAA-MM-DD`: consultar
+  alocações em BRL por unidade e total geral no período inclusivo. Unidades sem
+  despesas aparecem com total zero; despesas USD pendentes são excluídas.
 - `GET /health`: verificar a disponibilidade da API.
 
 As rotas de listagem de unidades e despesas são paginadas. O cadastro de
@@ -154,7 +160,7 @@ decimais, por exemplo `"1500.00"`, e `allocations` como uma lista de objetos
 `unit_id` e `percentage`. O percentual também deve ser texto decimal, aceita até
 quatro casas e a soma precisa ser exatamente 100%. Despesas BRL são rateadas
 imediatamente. Despesas USD são gravadas com status `pending`, sem valor
-convertido nem valores alocados em BRL, até a etapa de câmbio.
+convertido nem valores alocados em BRL, até o worker concluir a conversão.
 
 Despesas em USD são convertidas de forma assíncrona pela cotação histórica do
 Frankfurter para a data da despesa. Se não houver cotação naquela data, o
@@ -191,6 +197,31 @@ Exemplo de cadastro:
 
 O formulário Blade fica na página inicial (`/`). A API e a interface usam o
 mesmo serviço de registro e cálculo de rateio.
+
+### Formato de importação CSV
+
+O arquivo deve ser UTF-8, separado por vírgulas, com este cabeçalho (a ordem
+das colunas pode variar):
+
+```csv
+description,supplier,expense_date,amount,currency,allocations
+Internet,Fornecedor,2026-10-01,100.00,BRL,unidade-centro=60;unidade-norte=40
+Licença,Fornecedor,2026-10-02,25.00,USD,unidade-centro=100
+```
+
+Cada linha representa uma despesa. `expense_date` usa `AAAA-MM-DD`; `amount`
+usa ponto decimal e no máximo duas casas; `currency` aceita `BRL` ou `USD`.
+Em `allocations`, cada item é `codigo-da-unidade=percentual`, separado por
+ponto e vírgula. O código precisa existir e os percentuais devem somar
+exatamente 100%, com até quatro casas decimais. Campos de texto que contiverem
+vírgulas devem seguir as regras de escape padrão do CSV. O arquivo pode ter até
+10 MB. Erros de uma linha não impedem a importação das demais; a resposta inclui
+o número da linha e a causa. Despesas USD válidas ficam pendentes e são
+enfileiradas para conversão como no cadastro manual.
+
+O relatório da interface aparece na página inicial e permite selecionar as
+datas inicial e final. A API exige os mesmos parâmetros; ambos incluem os dois
+limites do período e excluem despesas não convertidas.
 
 ## Testes essenciais
 

@@ -134,6 +134,62 @@
                 @endif
             </section>
 
+            <section>
+                <h2>Importar despesas por CSV</h2>
+                <p class="muted">Cada linha válida é importada independentemente. Use o formato documentado abaixo; rateios devem seguir <code>codigo=percentual;codigo=percentual</code>.</p>
+                <form method="post" action="{{ route('expenses.import') }}" enctype="multipart/form-data">
+                    @csrf
+                    <label>Arquivo CSV
+                        <input type="file" name="file" accept=".csv,text/csv" required>
+                    </label>
+                    <button type="submit">Importar arquivo</button>
+                </form>
+                @if ($importResults !== [])
+                    <h3>Resultado por linha</h3>
+                    <ul>
+                        @foreach ($importResults as $result)
+                            <li>
+                                Linha {{ $result['line'] }}:
+                                @if ($result['status'] === 'imported')
+                                    importada (despesa #{{ $result['expense_id'] }})
+                                @else
+                                    {{ implode(' ', $result['errors']) }}
+                                @endif
+                            </li>
+                        @endforeach
+                    </ul>
+                @endif
+            </section>
+
+            <section>
+                <h2>Relatório por unidade</h2>
+                <form method="get" action="{{ route('dashboard') }}" class="grid">
+                    <label>Data inicial
+                        <input type="date" name="start_date" value="{{ $report['start_date'] }}" required>
+                    </label>
+                    <label>Data final
+                        <input type="date" name="end_date" value="{{ $report['end_date'] }}" required>
+                    </label>
+                    <button type="submit">Consultar período</button>
+                </form>
+                <p><strong>Total geral:</strong> R$ {{ intdiv($report['total_brl_cents'], 100) }},{{ str_pad((string) ($report['total_brl_cents'] % 100), 2, '0', STR_PAD_LEFT) }}</p>
+                <table>
+                    <thead>
+                        <tr><th>Empresa</th><th>Unidade</th><th>Código</th><th>Total BRL</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($report['units'] as $unit)
+                            <tr>
+                                <td>{{ $unit['company'] }}</td>
+                                <td>{{ $unit['name'] }}</td>
+                                <td>{{ $unit['code'] }}</td>
+                                <td>R$ {{ intdiv($unit['total_brl_cents'], 100) }},{{ str_pad((string) ($unit['total_brl_cents'] % 100), 2, '0', STR_PAD_LEFT) }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </section>
+
             <div class="grid">
                 <section>
                     <h2>Unidades cadastradas</h2>
