@@ -3,9 +3,10 @@
 Aplicação para cadastrar despesas compartilhadas por empresas de um mesmo grupo,
 ratear seus valores entre unidades e consultar os totais em reais por período.
 
-> **Status:** o esqueleto Laravel e o schema inicial do domínio estão
-> implementados, assim como o cálculo exato do rateio. Os fluxos de cadastro,
-> câmbio, importação e relatório ainda serão desenvolvidos.
+> **Status:** cadastro de empresas, unidades e despesas em BRL está disponível
+> pela API e pela interface Blade. Despesas em USD são preservadas como
+> pendentes de conversão. Integração de câmbio, importação CSV e relatório
+> ainda serão implementados.
 
 ## Problema e escopo
 
@@ -113,43 +114,68 @@ regras duplicadas.
 
 ## Plano de implementação
 
-1. **Fundação:** criar o projeto Laravel, configurar MySQL e migrations para
-   empresas, unidades, despesas e rateios.
-2. **Regra financeira:** implementar validação da soma de percentuais e
-   distribuição exata dos centavos; cobrir com testes de unidade.
-3. **Fluxo principal:** cadastrar unidades e despesas em BRL pela API e pela
-   interface; adicionar testes de integração.
-4. **Câmbio resiliente:** integrar cotação histórica USD/BRL, persistir a
-   cotação e permitir que uma falha deixe a despesa pendente. Se o tempo
-   permitir, adicionar fila e novas tentativas.
-5. **CSV:** importar cada linha de forma independente e devolver um relatório
-   de sucesso e erros por linha.
-6. **Relatório:** somar alocações em BRL por unidade e período, expondo o
-   resultado na API e na interface.
-7. **Entrega:** documentar instalação, decisões e limitações, e validar o
-   fluxo com a suíte de testes.
+1. **Concluído — fundação:** projeto Laravel, configuração MySQL e migrations
+   para empresas, unidades, despesas e rateios.
+2. **Concluído — regra financeira:** validação exata dos percentuais e
+   distribuição de centavos pelo método dos maiores restos.
+3. **Concluído — cadastro inicial:** empresas e unidades, além de despesas em
+   BRL e despesas USD pendentes, pela API e pela interface Blade.
+4. **Próximo — câmbio resiliente:** buscar cotação histórica USD/BRL, persistir
+   cotação e conversão e permitir nova tentativa quando o serviço falhar.
+5. **Pendente — CSV:** importar cada linha independentemente e devolver um
+   relatório de sucesso e erros por linha.
+6. **Pendente — relatório:** somar alocações em BRL por unidade e período na
+   API e na interface.
+7. **Pendente — entrega:** completar documentação e validar todos os fluxos.
 
 **Prioridade para o prazo de 4 a 6 horas:** garantir primeiro o modelo de dados,
 o rateio exato e os testes; em seguida entregar o fluxo principal e o relatório.
 Se o prazo apertar, a fila automática ou refinamentos da interface podem ficar
 de fora, mas a despesa em USD não deve ser descartada quando o câmbio falhar.
 
-## API planejada
+## API disponível
 
-Rotas iniciais sob `/api/v1`:
+Rotas atuais sob `/api/v1`:
 
+- `GET/POST /companies`: listar e cadastrar empresas.
 - `GET/POST /units`: listar e cadastrar unidades.
 - `GET/POST /expenses`: listar e cadastrar despesas.
-- `POST /expenses/import`: importar CSV e receber o relatório por linha.
-- `GET /reports/units`: obter totais por unidade para um período.
+- `GET /health`: verificar a disponibilidade da API.
 
-Os contratos definitivos, filtros, paginação e códigos de erro serão
-documentados quando as rotas forem implementadas.
+As rotas de listagem de unidades e despesas são paginadas. O cadastro de
+despesas recebe `amount` como texto decimal com ponto e até duas casas
+decimais, por exemplo `"1500.00"`, e `allocations` como uma lista de objetos
+`unit_id` e `percentage`. O percentual também deve ser texto decimal, aceita até
+quatro casas e a soma precisa ser exatamente 100%. Despesas BRL são rateadas
+imediatamente. Despesas USD são gravadas com status `pending`, sem valor
+convertido nem valores alocados em BRL, até a etapa de câmbio.
+
+Exemplo de cadastro:
+
+```json
+{
+  "description": "Licença CRM",
+  "supplier": "Fornecedor X",
+  "expense_date": "2026-09-01",
+  "amount": "1500.00",
+  "currency": "BRL",
+  "allocations": [
+    {"unit_id": 1, "percentage": "50"},
+    {"unit_id": 2, "percentage": "30"},
+    {"unit_id": 3, "percentage": "20"}
+  ]
+}
+```
+
+O formulário Blade fica na página inicial (`/`). A API e a interface usam o
+mesmo serviço de registro e cálculo de rateio.
 
 ## Testes essenciais
 
 - Rateio rejeita percentuais cuja soma não seja exatamente 100%.
 - Rateio de valores que geram frações de centavo fecha exatamente com o total.
+- API e interface cadastram despesas com rateios idênticos e rejeitam somas
+  percentuais inválidas.
 - Conversão USD usa e persiste uma cotação histórica; falha no provedor não
   elimina a despesa.
 - CSV importa linhas válidas mesmo quando outras linhas são inválidas e
