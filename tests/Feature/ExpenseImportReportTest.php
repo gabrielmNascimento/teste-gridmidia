@@ -6,6 +6,7 @@ use App\Jobs\ConvertPendingExpenseJob;
 use App\Models\Company;
 use App\Models\Expense;
 use App\Models\Unit;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
@@ -14,6 +15,13 @@ use Tests\TestCase;
 class ExpenseImportReportTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->actingAs(User::factory()->create());
+    }
 
     public function test_api_imports_valid_csv_rows_independently_and_reports_row_errors(): void
     {

@@ -6,6 +6,7 @@ use App\Jobs\ConvertPendingExpenseJob;
 use App\Models\Company;
 use App\Models\Expense;
 use App\Models\Unit;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
@@ -13,6 +14,13 @@ use Tests\TestCase;
 class ExpenseRegistrationTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->actingAs(User::factory()->create());
+    }
 
     public function test_api_registers_company_and_unit(): void
     {

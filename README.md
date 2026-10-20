@@ -30,6 +30,9 @@ importar despesas por CSV e consultar totais por unidade em um período.
 - **API:** REST versionada em `/api/v1`, compartilhando validações e serviços
   com a interface para que as regras sejam aplicadas da mesma forma nos dois
   canais.
+- **Autenticação:** sessão Laravel na interface Blade e tokens Bearer Sanctum
+  na API. Não há cadastro público; a primeira conta administrativa é criada
+  pelo comando Artisan no servidor.
 - **Ambiente local:** Docker Compose com Laravel Sail executa a aplicação e
   o MySQL em serviços reproduzíveis, sem exigir MySQL instalado no host.
 - **Câmbio:** integração encapsulada em um serviço de cotação, inicialmente com
@@ -134,25 +137,59 @@ regras duplicadas.
    resumo de sucesso e erros por linha.
 6. **Concluído — relatório:** somar alocações convertidas em BRL por unidade e
    período na API e na interface.
-7. **Concluído — entrega funcional:** documentar contratos e validar os fluxos
+7. **Concluído — autenticação:** proteger interface e API, com sessões,
+   tokens revogáveis/expiráveis e criação administrativa sem cadastro público.
+8. **Concluído — entrega funcional:** documentar contratos e validar os fluxos
    principais com testes automatizados.
 
-Autenticação e autorização continuam fora do escopo do teste, mas são
-necessárias antes de disponibilizar o sistema em produção.
+As contas provisionadas pelo comando têm acesso administrativo ao grupo inteiro.
+Papéis e permissões por empresa/unidade continuam fora do escopo deste teste.
 
 ## API disponível
 
 Rotas atuais sob `/api/v1`:
 
-- `GET/POST /companies`: listar e cadastrar empresas.
-- `GET/POST /units`: listar e cadastrar unidades.
-- `GET/POST /expenses`: listar e cadastrar despesas.
-- `POST /expenses/import`: importar despesas por CSV; retorna quantidades
-  importadas e erros associados às linhas.
+- `GET /health`: verificar a disponibilidade da API sem autenticação.
+- `POST /auth/token`: autenticar com `email`, `password` e `device_name`;
+  retorna um token Bearer mostrado apenas nessa resposta.
+- `DELETE /auth/token`: revogar o token Bearer usado na requisição.
+- `GET/POST /companies`: listar e cadastrar empresas (Bearer obrigatório).
+- `GET/POST /units`: listar e cadastrar unidades (Bearer obrigatório).
+- `GET/POST /expenses`: listar e cadastrar despesas (Bearer obrigatório).
+- `POST /expenses/import`: importar CSV (Bearer obrigatório), com resumo de
+  importações e erros por linha.
 - `GET /reports/units?start_date=AAAA-MM-DD&end_date=AAAA-MM-DD`: consultar
-  alocações em BRL por unidade e total geral no período inclusivo. Unidades sem
-  despesas aparecem com total zero; despesas USD pendentes são excluídas.
-- `GET /health`: verificar a disponibilidade da API.
+  alocações em BRL por unidade e total geral no período inclusivo (Bearer
+  obrigatório). Unidades sem despesas aparecem com total zero; despesas USD
+  pendentes são excluídas.
+
+Crie as contas apenas no servidor, após as migrations, com
+`./vendor/bin/sail artisan admin:create` (ou `php artisan admin:create`). O
+comando solicita nome, e-mail e senha em modo oculto, exige senha de pelo menos
+12 caracteres e recusa e-mails já cadastrados. Não existe endpoint público de
+cadastro.
+Sessões expiram por inatividade; cookies `Secure` são ativados por padrão em
+`APP_ENV=production`. Tokens Sanctum expiram após 30 dias por padrão
+(`SANCTUM_EXPIRATION`, em minutos) e podem ser revogados pelo endpoint acima.
+Os formulários web usam proteção CSRF do Laravel; as tentativas de login web e
+API são limitadas a cinco por minuto. Configure HTTPS em produção para proteger
+senhas, sessões e tokens em trânsito.
+
+Exemplo de emissão e uso de token:
+
+```sh
+curl -X POST http://localhost:8000/api/v1/auth/token \
+  -H "Accept: application/json" \
+  -d "email=admin@example.com&password=<senha>&device_name=demonstracao"
+curl http://localhost:8000/api/v1/expenses \
+  -H "Accept: application/json" \
+  -H "Authorization: Bearer <token>"
+```
+
+Guarde o token como segredo; ele não pode ser recuperado depois que a resposta
+de emissão for descartada. Substitua os valores de exemplo pelas credenciais
+digitadas no comando de criação; não armazene senhas ou tokens em arquivos
+versionados.
 
 As rotas de listagem de unidades e despesas são paginadas. O cadastro de
 despesas recebe `amount` como texto decimal com ponto e até duas casas
@@ -234,12 +271,14 @@ limites do período e excluem despesas não convertidas.
 - CSV importa linhas válidas mesmo quando outras linhas são inválidas e
   identifica os erros.
 - Relatório retorna corretamente o total em BRL por unidade dentro do período.
+- Rotas protegidas exigem sessão ou token válido; login inválido é limitado e
+  tokens podem ser revogados.
 
 ## Fora do escopo inicial
 
-- **Autenticação e autorização:** diferencial do teste; não implementar antes
-  do fluxo central, mas são necessárias antes de disponibilizar a aplicação em
-  produção.
+- **Papéis e autorização granular:** todos os usuários provisionados são
+  administradores com acesso ao grupo inteiro. Separar acesso por empresa ou
+  unidade exige regras de negócio adicionais.
 - **Cadastro completo de empresas e gestão avançada de usuários:** manter o
   escopo focado no cadastro e uso das unidades e despesas. A necessidade de
   múltiplas empresas administradoras deve ser confirmada com o negócio.
@@ -265,14 +304,17 @@ composer install
 ./vendor/bin/sail up -d
 ./vendor/bin/sail artisan key:generate
 ./vendor/bin/sail artisan migrate
+./vendor/bin/sail artisan admin:create
 ```
 
-A aplicação fica disponível em <http://localhost:8000>. O endpoint de saúde da
-API é <http://localhost:8000/api/v1/health>.
+A aplicação fica disponível em <http://localhost:8000>; entre com a conta criada
+no comando acima. O endpoint de saúde público é
+<http://localhost:8000/api/v1/health>.
 
 ### Roteiro de demonstração
 
-1. Abra <http://localhost:8000> e cadastre uma empresa chamada
+1. Entre em <http://localhost:8000> com a conta administrativa criada no
+   comando `admin:create` e cadastre uma empresa chamada
    `Grupo Demonstração`.
 2. Cadastre duas unidades para essa empresa com os códigos `unidade-centro` e
    `unidade-norte`.
@@ -305,12 +347,20 @@ API é <http://localhost:8000/api/v1/health>.
    relatório depois de convertida.
 
 Para demonstrar os mesmos fluxos por HTTP, importe o arquivo e consulte o
-relatório:
+relatório. Primeiro emita um token pela rota `/api/v1/auth/token` com as
+credenciais criadas e use o valor retornado no cabeçalho `Authorization`:
 
 ```sh
+curl -X POST http://localhost:8000/api/v1/auth/token \
+  -H "Accept: application/json" \
+  -d "email=<email>&password=<senha>&device_name=demonstracao"
 curl -X POST http://localhost:8000/api/v1/expenses/import \
+  -H "Accept: application/json" \
+  -H "Authorization: Bearer <token>" \
   -F "file=@despesas-demonstracao.csv"
-curl "http://localhost:8000/api/v1/reports/units?start_date=2026-10-01&end_date=2026-10-31"
+curl "http://localhost:8000/api/v1/reports/units?start_date=2026-10-01&end_date=2026-10-31" \
+  -H "Accept: application/json" \
+  -H "Authorization: Bearer <token>"
 ```
 
 O arquivo de exemplo fica apenas no diretório local e pode ser removido ao

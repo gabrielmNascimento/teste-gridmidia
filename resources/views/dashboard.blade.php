@@ -28,6 +28,11 @@
         <main>
             <h1>Rateio de despesas</h1>
             <p class="muted">Cadastre empresas, unidades e despesas compartilhadas.</p>
+            <form method="post" action="{{ route('logout') }}">
+                @csrf
+                <span>Conectado como {{ auth()->user()->name }}.</span>
+                <button type="submit">Sair</button>
+            </form>
 
             @if (session('status'))
                 <p class="notice">{{ session('status') }}</p>
