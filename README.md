@@ -270,6 +270,52 @@ composer install
 A aplicação fica disponível em <http://localhost:8000>. O endpoint de saúde da
 API é <http://localhost:8000/api/v1/health>.
 
+### Roteiro de demonstração
+
+1. Abra <http://localhost:8000> e cadastre uma empresa chamada
+   `Grupo Demonstração`.
+2. Cadastre duas unidades para essa empresa com os códigos `unidade-centro` e
+   `unidade-norte`.
+3. Registre pela tela uma despesa em BRL de `100.00`, dividida em `60%` para a
+   unidade Centro e `40%` para a unidade Norte. A tabela deve mostrar
+   imediatamente os valores de R$ 60,00 e R$ 40,00.
+4. Em outro terminal, mantenha o worker de conversão ativo:
+
+   ```sh
+   ./vendor/bin/sail artisan queue:work
+   ```
+
+5. Crie um CSV de demonstração no diretório atual e importe-o pela seção
+   **Importar despesas por CSV** da página:
+
+   ```sh
+   cat > despesas-demonstracao.csv <<'CSV'
+   description,supplier,expense_date,amount,currency,allocations
+   Hospedagem,Fornecedor Demo,2026-10-16,25.00,USD,unidade-centro=50;unidade-norte=50
+   Material,Fornecedor Demo,2026-10-17,40.00,BRL,unidade-centro=100
+   Linha inválida,Fornecedor Demo,2026-10-17,10.00,BRL,codigo-inexistente=100
+   CSV
+   ```
+
+   O resultado esperado é de duas linhas importadas e uma linha com erro. A
+   hospedagem USD aparece pendente até o worker obter a cotação; depois, a tela
+   mostra a conversão e a data efetiva usada.
+6. No relatório da página, selecione de `2026-10-01` até `2026-10-31`.
+   Confira os totais por unidade e o total geral. A despesa USD só entra no
+   relatório depois de convertida.
+
+Para demonstrar os mesmos fluxos por HTTP, importe o arquivo e consulte o
+relatório:
+
+```sh
+curl -X POST http://localhost:8000/api/v1/expenses/import \
+  -F "file=@despesas-demonstracao.csv"
+curl "http://localhost:8000/api/v1/reports/units?start_date=2026-10-01&end_date=2026-10-31"
+```
+
+O arquivo de exemplo fica apenas no diretório local e pode ser removido ao
+terminar a demonstração.
+
 ### Testes
 
 ```sh
