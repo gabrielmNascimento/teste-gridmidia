@@ -4,8 +4,8 @@ Aplicação para cadastrar despesas compartilhadas por empresas de um mesmo grup
 ratear seus valores entre unidades e consultar os totais em reais por período.
 
 > **Status:** o esqueleto Laravel e o schema inicial do domínio estão
-> implementados. As regras de rateio e os fluxos da aplicação ainda serão
-> desenvolvidos.
+> implementados, assim como o cálculo exato do rateio. Os fluxos de cadastro,
+> câmbio, importação e relatório ainda serão desenvolvidos.
 
 ## Problema e escopo
 
