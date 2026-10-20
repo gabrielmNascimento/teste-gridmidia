@@ -169,7 +169,16 @@
                                     <td>{{ $expense->description }}</td>
                                     <td>{{ $expense->supplier }}</td>
                                     <td>{{ $expense->currency }} {{ intdiv($expense->amount_cents, 100) }},{{ str_pad((string) ($expense->amount_cents % 100), 2, '0', STR_PAD_LEFT) }}</td>
-                                    <td>{{ $expense->conversion_status === 'pending' ? 'Pendente' : 'Concluída' }}</td>
+                                    <td>
+                                        @if ($expense->conversion_status === 'pending')
+                                            Pendente — aguardando cotação
+                                        @elseif ($expense->conversion_status === 'converted')
+                                            R$ {{ intdiv($expense->converted_amount_cents, 100) }},{{ str_pad((string) ($expense->converted_amount_cents % 100), 2, '0', STR_PAD_LEFT) }}
+                                            <br><span class="muted">Cotação {{ $expense->exchange_rate }} em {{ $expense->exchange_rate_date->format('Y-m-d') }} ({{ $expense->exchange_rate_provider }})</span>
+                                        @else
+                                            Não necessária
+                                        @endif
+                                    </td>
                                     <td>
                                         @foreach ($expense->allocations as $allocation)
                                             {{ $allocation->unit->name }}: {{ $allocation->percentage }}%

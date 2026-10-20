@@ -35,4 +35,8 @@ return [
         ],
     ],
 
+    'frankfurter' => [
+        'url' => env('FRANKFURTER_API_URL', 'https://api.frankfurter.dev/v1'),
+    ],
+
 ];

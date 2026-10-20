@@ -3,10 +3,10 @@
 Aplicação para cadastrar despesas compartilhadas por empresas de um mesmo grupo,
 ratear seus valores entre unidades e consultar os totais em reais por período.
 
-> **Status:** cadastro de empresas, unidades e despesas em BRL está disponível
-> pela API e pela interface Blade. Despesas em USD são preservadas como
-> pendentes de conversão. Integração de câmbio, importação CSV e relatório
-> ainda serão implementados.
+> **Status:** cadastro de empresas, unidades e despesas está disponível pela
+> API e pela interface Blade. Despesas USD são convertidas por uma fila usando
+> cotação histórica. Importação CSV e relatório por unidade/período ainda serão
+> implementados.
 
 ## Problema e escopo
 
@@ -33,9 +33,8 @@ importar despesas por CSV e consultar totais por unidade em um período.
 - **Ambiente local:** Docker Compose com Laravel Sail executa a aplicação e
   o MySQL em serviços reproduzíveis, sem exigir MySQL instalado no host.
 - **Câmbio:** integração encapsulada em um serviço de cotação, inicialmente com
-  a API pública Frankfurter. Despesas em USD podem ser persistidas como
-  pendentes de conversão se o provedor estiver indisponível; uma fila pode
-  tentar novamente sem bloquear ou descartar a despesa.
+  a API pública Frankfurter. Despesas em USD são persistidas como pendentes
+  antes do processamento da fila, que tenta novamente se o provedor falhar.
 - **Importação:** processamento por linha, isolando cada registro válido em
   uma transação. Erros de uma linha são incluídos no relatório de retorno e não
   interrompem as demais.
@@ -81,8 +80,14 @@ unidades.
 Persistir a despesa em USD como pendente, em vez de rejeitá-la ou perdê-la,
 atende ao requisito de resiliência. A conversão e a criação das alocações em
 BRL ficam condicionadas à obtenção da cotação. Quando a fila estiver
-configurada, novas tentativas podem concluir o processamento. Uma despesa ainda
-pendente não deve ser apresentada como um total convertido no relatório.
+ativa, o job tenta processar a conversão até cinco vezes, com espera crescente.
+O serviço busca a taxa da data da despesa e registra a data efetiva retornada
+pelo provedor, que pode ser anterior em fins de semana ou feriados. A taxa é
+extraída como texto decimal e multiplicada por centavos com aritmética inteira,
+sem depender de `float` ou da extensão BCMath. O total é arredondado uma vez
+para centavos, pelo método metade para cima, antes da distribuição pelo método
+dos maiores restos. Uma despesa ainda pendente não deve ser apresentada como
+um total convertido no relatório.
 
 ### Importação parcial
 
@@ -120,8 +125,9 @@ regras duplicadas.
    distribuição de centavos pelo método dos maiores restos.
 3. **Concluído — cadastro inicial:** empresas e unidades, além de despesas em
    BRL e despesas USD pendentes, pela API e pela interface Blade.
-4. **Próximo — câmbio resiliente:** buscar cotação histórica USD/BRL, persistir
-   cotação e conversão e permitir nova tentativa quando o serviço falhar.
+4. **Concluído — câmbio resiliente:** buscar e persistir cotação histórica
+   USD/BRL, converter sem ponto flutuante e processar falhas com nova tentativa
+   na fila.
 5. **Pendente — CSV:** importar cada linha independentemente e devolver um
    relatório de sucesso e erros por linha.
 6. **Pendente — relatório:** somar alocações em BRL por unidade e período na
@@ -130,8 +136,8 @@ regras duplicadas.
 
 **Prioridade para o prazo de 4 a 6 horas:** garantir primeiro o modelo de dados,
 o rateio exato e os testes; em seguida entregar o fluxo principal e o relatório.
-Se o prazo apertar, a fila automática ou refinamentos da interface podem ficar
-de fora, mas a despesa em USD não deve ser descartada quando o câmbio falhar.
+Se o prazo apertar, refinamentos da interface podem ficar de fora, mas a
+despesa em USD não deve ser descartada quando o câmbio falhar.
 
 ## API disponível
 
@@ -149,6 +155,22 @@ decimais, por exemplo `"1500.00"`, e `allocations` como uma lista de objetos
 quatro casas e a soma precisa ser exatamente 100%. Despesas BRL são rateadas
 imediatamente. Despesas USD são gravadas com status `pending`, sem valor
 convertido nem valores alocados em BRL, até a etapa de câmbio.
+
+Despesas em USD são convertidas de forma assíncrona pela cotação histórica do
+Frankfurter para a data da despesa. Se não houver cotação naquela data, o
+provedor retorna a data efetiva mais recente disponível; essa data, a taxa e o
+provedor ficam persistidos na despesa. O valor convertido é arredondado uma
+única vez para centavos (metade para cima) antes do rateio. Falhas mantêm a
+despesa pendente e o job é tentado até cinco vezes, com intervalos crescentes.
+Para processar a fila, mantenha um worker ativo:
+
+```bash
+./vendor/bin/sail artisan queue:work
+```
+
+O serviço `laravel.test` deve estar iniciado para executar o comando via Sail.
+Em execução fora do Sail, configure o ambiente para alcançar o MySQL e execute
+`php artisan queue:work`.
 
 Exemplo de cadastro:
 

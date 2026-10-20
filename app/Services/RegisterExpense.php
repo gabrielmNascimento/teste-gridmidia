@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\ConvertPendingExpenseJob;
 use App\Models\Expense;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -53,7 +54,7 @@ class RegisterExpense
 
         $isBrl = $data['currency'] === Expense::CURRENCY_BRL;
 
-        return DB::transaction(function () use ($data, $amountCents, $calculatedAllocations, $isBrl): Expense {
+        $expense = DB::transaction(function () use ($data, $amountCents, $calculatedAllocations, $isBrl): Expense {
             $expense = Expense::create([
                 'description' => $data['description'],
                 'supplier' => $data['supplier'],
@@ -77,6 +78,12 @@ class RegisterExpense
 
             return $expense->load('allocations.unit.company');
         });
+
+        if (! $isBrl) {
+            ConvertPendingExpenseJob::dispatch($expense->id)->afterCommit();
+        }
+
+        return $expense;
     }
 
     private function parseAmountCents(string $amount): int

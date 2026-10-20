@@ -2,10 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\ConvertPendingExpenseJob;
 use App\Models\Company;
 use App\Models\Expense;
 use App\Models\Unit;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class ExpenseRegistrationTest extends TestCase
@@ -90,6 +92,7 @@ class ExpenseRegistrationTest extends TestCase
 
     public function test_api_keeps_usd_expense_and_allocations_pending_conversion(): void
     {
+        Queue::fake();
         $units = $this->createUnits(2);
 
         $response = $this->postJson('/api/v1/expenses', [
@@ -114,6 +117,7 @@ class ExpenseRegistrationTest extends TestCase
 
         $this->assertDatabaseCount('expenses', 1);
         $this->assertDatabaseCount('expense_allocations', 2);
+        Queue::assertPushed(ConvertPendingExpenseJob::class, fn (ConvertPendingExpenseJob $job): bool => $job->expenseId === $response->json('data.id'));
     }
 
     public function test_web_form_uses_the_same_expense_registration_service(): void
