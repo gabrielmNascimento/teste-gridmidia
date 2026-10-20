@@ -3,10 +3,9 @@
 Aplicação para cadastrar despesas compartilhadas por empresas de um mesmo grupo,
 ratear seus valores entre unidades e consultar os totais em reais por período.
 
-> **Status:** este repositório ainda não contém o projeto Laravel. Este documento
-> registra a proposta inicial de arquitetura e as decisões para orientar a
-> implementação. Os comandos de instalação e execução serão adicionados junto
-> com a configuração do projeto.
+> **Status:** o esqueleto Laravel e o schema inicial do domínio estão
+> implementados. As regras de rateio e os fluxos da aplicação ainda serão
+> desenvolvidos.
 
 ## Problema e escopo
 
@@ -43,7 +42,8 @@ importar despesas por CSV e consultar totais por unidade em um período.
 ### Modelo de dados inicial
 
 - `companies`: empresas do grupo.
-- `units`: unidades pertencentes a uma empresa.
+- `units`: unidades pertencentes a uma empresa, com código estável e único
+  usado para referenciá-las na importação CSV.
 - `expenses`: descrição, fornecedor, data, valor original, moeda, valor
   convertido para BRL quando disponível, cotação e estado da conversão.
 - `expense_allocations`: unidade, percentual e valor alocado em centavos de BRL
@@ -53,6 +53,13 @@ O estado de conversão deve distinguir despesas em BRL das despesas em USD
 pendentes ou convertidas. A cotação usada e, quando disponível, sua data efetiva
 devem ser persistidas para que relatórios históricos não dependam de consultar
 novamente o provedor.
+
+Valores de despesas e alocações são armazenados em centavos inteiros. O
+percentual de cada alocação usa decimal com quatro casas, evitando ponto
+flutuante e permitindo validar a soma com precisão fixa. O valor alocado fica
+nulo enquanto a despesa USD aguarda conversão, para que uma cotação indisponível
+nunca pareça um total BRL. Chaves estrangeiras impedem a remoção de empresas,
+unidades ou despesas que ainda tenham dados dependentes.
 
 ## Decisões e motivos
 
