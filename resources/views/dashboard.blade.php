@@ -77,7 +77,7 @@
                             <input name="name" maxlength="255" value="{{ old('name') }}" required>
                         </label>
                         <label>Código (usado no CSV)
-                            <input name="code" maxlength="255" pattern="[A-Za-z0-9_-]+" value="{{ old('code') }}" required>
+                            <input name="code" maxlength="255" value="{{ old('code') }}" required>
                         </label>
                         <button type="submit">Cadastrar unidade</button>
                     </form>

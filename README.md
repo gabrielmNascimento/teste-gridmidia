@@ -293,6 +293,11 @@ limites do período e excluem despesas não convertidas.
 
 - Docker Engine e Docker Compose.
 - PHP 8.3 e Composer 2 para instalar as dependências do projeto.
+- Pelo menos 4 GB livres em disco antes de iniciar o Sail pela primeira vez. A
+  imagem da aplicação e os serviços Docker podem consumir vários gigabytes;
+  confira o espaço disponível antes do build e acompanhe-o durante a execução.
+  Se não houver espaço suficiente, não inicie o build para evitar esgotar a
+  partição.
 
 ### Instalação
 
@@ -306,6 +311,11 @@ composer install
 ./vendor/bin/sail artisan migrate
 ./vendor/bin/sail artisan admin:create
 ```
+
+O comando `admin:create` é interativo e deve ser executado depois das migrações
+e antes do primeiro login. Informe o nome, o e-mail e uma senha forte com no
+mínimo 12 caracteres. A senha é solicitada sem exibição no terminal; não a
+compartilhe nem a salve em arquivos versionados.
 
 A aplicação fica disponível em <http://localhost:8000>; entre com a conta criada
 no comando acima. O endpoint de saúde público é
